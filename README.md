@@ -1,39 +1,93 @@
+<div align="center">
+
 # FreeGLMKimiAPI
 
-OpenAI/Anthropic-compatible локальный прокси для бесплатных web-аккаунтов **GLM/Z.ai**, legacy **chatglm.cn** и **Kimi**. По духу — как FreeQwenApi / FreeDeepseekAPI, но отдельным проектом и с эмуляцией tool use для AI-агентов.
+**Локальный OpenAI/Anthropic-compatible прокси для бесплатных web-аккаунтов GLM/Z.ai и Kimi**
+
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![OpenAI API](https://img.shields.io/badge/OpenAI-compatible-111827?style=for-the-badge)](#примеры-запросов)
+[![Anthropic API](https://img.shields.io/badge/Anthropic-Messages-191919?style=for-the-badge)](#tool-use-для-агентов)
+[![GLM/Z.ai](https://img.shields.io/badge/GLM%20%2F%20Z.ai-supported-6D5DF6?style=for-the-badge)](#модели)
+[![Kimi](https://img.shields.io/badge/Kimi-supported-00A3FF?style=for-the-badge)](#модели)
+
+**Ватермарка:** [t.me/forgetmeai](https://t.me/forgetmeai)
+
+</div>
+
+---
+
+FreeGLMKimiAPI превращает web-чаты **GLM/Z.ai**, старый **chatglm.cn** и **Kimi** в локальный API, который понимают OpenAI SDK, Claude Code, OpenCode, OpenClaw, Hermes Agent и другие агентные клиенты.
+
+По духу это похоже на FreeQwenApi / FreeDeepseekAPI, но проект сделан отдельно и дополнительно умеет **эмулировать tool use** для AI-агентов.
+
+> ⚠️ Это не официальный API. Используй для личных экспериментов, локальных агентов и тестов. Не публикуй токены и не открывай сервис наружу без `API_KEYS`.
+
+---
 
 ## Навигация
 
-- [Что умеет](#что-умеет)
+- [Коротко: что это даёт](#коротко-что-это-даёт)
+- [Возможности](#возможности)
 - [Быстрый старт](#быстрый-старт)
 - [Модели](#модели)
 - [Как добавить аккаунты](#как-добавить-аккаунты)
 - [Как получить токены](#как-получить-токены)
   - [GLM / Z.ai через браузер — рекомендуемый способ](#glm--zai-через-браузер--рекомендуемый-способ)
   - [GLM / Z.ai вручную из DevTools](#glm--zai-вручную-из-devtools)
-  - [Legacy GLM / chatglm.cn](#legacy-glm--chatglmcn)
+  - [Старый GLM / chatglm.cn](#старый-glm--chatglmcn)
   - [Kimi](#kimi)
 - [Примеры запросов](#примеры-запросов)
 - [Tool use для агентов](#tool-use-для-агентов)
 - [Диагностика](#диагностика)
 - [Ограничения](#ограничения)
+- [Полезные ссылки](#полезные-ссылки)
 
-## Что умеет
+---
 
-- `/v1/chat/completions` — OpenAI-compatible chat, streaming и non-streaming.
-- `/v1/messages` — минимальный Anthropic Messages shim для Claude Code и похожих клиентов.
-- `/v1/models`, `/health`, `/sessions`.
-- GLM через два backend-а:
-  - актуальный `chat.z.ai` / Z.ai;
-  - legacy `chatglm.cn` через `GLM_BACKEND=chatglm`.
-- Kimi через `kimi.com` gRPC-Web endpoint.
-- Prompt-based эмуляция tool use:
-  - прокси инжектит инструкции для function calling;
-  - парсит `[function_calls]`, JSON, XML-ish и legacy `TOOL_CALL` ответы;
-  - возвращает OpenAI-compatible `tool_calls`.
-- Sticky-сессии по `user`/agent id.
-- Round-robin по аккаунтам и cooldown после ошибок провайдера.
-- `MOCK_PROVIDER=1` для локальных тестов без реальных токенов.
+## Коротко: что это даёт
+
+| Было | Стало |
+| --- | --- |
+| Web-чат GLM/Z.ai или Kimi только в браузере | Локальный API на `http://127.0.0.1:9766` |
+| Нельзя просто подключить агентный клиент | Можно использовать OpenAI/Anthropic-compatible клиенты |
+| У web-моделей нет нормального function calling | Прокси эмулирует `tool_calls` через prompt-протокол |
+| Несколько аккаунтов приходится переключать руками | Есть `auth.json`, round-robin и cooldown после ошибок |
+| Anti-bot у Z.ai ломает прямые запросы | Есть browser fallback и опциональный CloakBrowser |
+
+---
+
+## Возможности
+
+### API
+
+- `POST /v1/chat/completions` — чат в формате OpenAI, обычный и streaming.
+- `POST /v1/messages` — минимальная прослойка Anthropic Messages API для Claude Code и похожих клиентов.
+- `GET /v1/models` — список моделей.
+- `GET /health` — проверка состояния.
+- `GET /sessions` — просмотр закреплённых сессий.
+
+### Провайдеры
+
+- **GLM / Z.ai** через актуальный `chat.z.ai`.
+- **Старый GLM** через `chatglm.cn` и `GLM_BACKEND=chatglm`.
+- **Kimi** через gRPC-Web endpoint `kimi.com`.
+
+### Для агентов
+
+- Эмуляция OpenAI `tools` / function calling.
+- Парсинг `[function_calls]`, JSON, XML-подобного формата и старого `TOOL_CALL`.
+- Ответы с `tool_calls`, совместимые с OpenAI.
+- Закреплённые сессии по `user` / ID агента.
+- Локальные мок-тесты без живых токенов через `MOCK_PROVIDER=1`.
+
+### Для нескольких аккаунтов
+
+- `auth.json` с несколькими аккаунтами.
+- Round-robin между аккаунтами.
+- Cooldown после ошибок провайдера.
+- Admin API для добавления аккаунтов без рестарта.
+
+---
 
 ## Быстрый старт
 
@@ -59,25 +113,29 @@ curl http://127.0.0.1:9766/v1/models
 node scripts/smoke.js
 ```
 
+---
+
 ## Модели
 
-GLM:
+### GLM
 
 - `glm-5`
 - `glm-5-thinking`
 - `glm-5-search`
 - `glm-5-deepresearch`
 
-Kimi:
+### Kimi
 
 - `kimi-k2.5`
 - `kimi-k2.5-thinking`
 - `kimi-k2.5-search`
 
-Выбор провайдера идёт по имени модели:
+Провайдер выбирается по имени модели:
 
-- `glm*` → GLM;
-- `kimi*` → Kimi.
+```text
+glm*  → GLM / Z.ai
+kimi* → Kimi
+```
 
 По умолчанию:
 
@@ -85,6 +143,8 @@ Kimi:
 DEFAULT_PROVIDER=kimi
 DEFAULT_MODEL=kimi-k2.5
 ```
+
+---
 
 ## Как добавить аккаунты
 
@@ -126,7 +186,7 @@ KIMI_TOKEN=PASTE_KIMI_TOKEN_HERE
 GLM_BACKEND=zai
 GLM_TOKEN=PASTE_ZAI_TOKEN_HERE
 
-# Legacy GLM через chatglm.cn
+# Старый GLM через chatglm.cn
 # GLM_BACKEND=chatglm
 # GLM_REFRESH_TOKEN=PASTE_CHATGLM_REFRESH_TOKEN_HERE
 ```
@@ -152,6 +212,8 @@ curl -X POST http://127.0.0.1:9766/admin/accounts \
 # перечитать auth.json
 curl -X POST http://127.0.0.1:9766/admin/accounts/reload -d '{}'
 ```
+
+---
 
 ## Как получить токены
 
@@ -189,7 +251,7 @@ ZAI_BROWSER_FALLBACK=1 MODEL=GLM-5.1 npm start
 - профиль браузера переиспользуется, поэтому логин не нужен каждый раз;
 - если Z.ai снова просит проверку — повтори `npm run auth:browser -- ./auth.json` и пройди её в том же окне;
 - скрипт игнорирует временные guest-токены вида `guest-...@guest.com` и ждёт реальный аккаунт;
-- если обычный browser fallback ловит anti-bot, можно попробовать CloakBrowser:
+- если обычный browser fallback упирается в anti-bot, можно попробовать CloakBrowser:
 
 ```bash
 ZAI_BROWSER_ENGINE=cloak \
@@ -249,11 +311,11 @@ ZAI_BROWSER_TIMEZONE=Europe/Samara
 }
 ```
 
-### Legacy GLM / chatglm.cn
+### Старый GLM / chatglm.cn
 
-Это отдельный старый backend. Токен от `chat.z.ai` сюда не подходит.
+Это отдельный старый бэкенд. Токен от `chat.z.ai` сюда не подходит.
 
-Нужно получить именно `chatglm.cn` refresh token:
+Нужно получить именно refresh token от `chatglm.cn`:
 
 1. Открой `https://chatglm.cn/` и залогинься.
 2. Открой DevTools → **Application**.
@@ -325,9 +387,11 @@ KIMI_TOKEN=PASTE_KIMI_BEARER_TOKEN_HERE
 
 Если получил `401` / `auth.token.invalid`, обнови страницу Kimi, отправь новое сообщение и скопируй свежий Bearer.
 
+---
+
 ## Примеры запросов
 
-Чтобы README не превращался в простыню, примеры вынесены отдельно:
+Чтобы README не превращался в простыню, подробные примеры вынесены отдельно:
 
 - [docs/request-examples.md](docs/request-examples.md)
 
@@ -335,17 +399,33 @@ KIMI_TOKEN=PASTE_KIMI_BEARER_TOKEN_HERE
 
 - health/models;
 - обычный `/v1/chat/completions`;
-- streaming;
-- GLM smoke;
-- OpenAI tools/function calling;
-- `/v1/messages` Anthropic shape;
+- потоковый режим;
+- smoke-тест GLM;
+- OpenAI tools / function calling;
+- `/v1/messages` в формате Anthropic;
 - Claude Code;
 - OpenCode;
-- локальные agent smoke-тесты.
+- OpenClaw;
+- локальные smoke-тесты агентов.
+
+Минимальный запрос:
+
+```bash
+curl http://127.0.0.1:9766/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "kimi-k2.5",
+    "messages": [
+      {"role": "user", "content": "Ответь одной фразой: привет"}
+    ]
+  }'
+```
+
+---
 
 ## Tool use для агентов
 
-Клиент отправляет обычные OpenAI `tools`. Если web-модель отвечает протокольным текстом, прокси превращает его в OpenAI-compatible `tool_calls`:
+Клиент отправляет обычные OpenAI `tools`. Если web-модель отвечает протокольным текстом, прокси превращает его в `tool_calls`, совместимые с OpenAI:
 
 ```json
 {
@@ -362,7 +442,7 @@ KIMI_TOKEN=PASTE_KIMI_BEARER_TOKEN_HERE
 }
 ```
 
-Локальные protocol-level agent smoke-тесты без реальных токенов:
+Локальные protocol-level smoke-тесты агентов без реальных токенов:
 
 ```bash
 MOCK_PROVIDER=1 PORT=9766 npm start
@@ -378,6 +458,8 @@ npm run agent:opencode
 npm run agent:openclaw
 ```
 
+---
+
 ## Диагностика
 
 ```bash
@@ -387,13 +469,13 @@ curl http://127.0.0.1:9766/health
 curl http://127.0.0.1:9766/admin/accounts
 ```
 
-Реальный smoke Z.ai:
+Реальный smoke-тест Z.ai:
 
 ```bash
 ZAI_BROWSER_FALLBACK=1 MODEL=GLM-5.1 npm run smoke:zai
 ```
 
-Импорт successful browser curl для диагностики Z.ai:
+Импорт успешного browser curl для диагностики Z.ai:
 
 ```bash
 pbpaste | node scripts/import_zai_curl.js /dev/stdin /tmp/freeglm-auth.json
@@ -402,11 +484,30 @@ AUTH_PATH=/tmp/freeglm-auth.json MODEL=GLM-5.1 npm run smoke:zai
 
 Скрипты печатают только статус и наличие полей, сами секреты не выводят.
 
+---
+
 ## Ограничения
 
 - Это не официальный API. Web API GLM/Z.ai/Kimi могут меняться.
 - Для настоящего E2E нужны живые web-токены.
 - Z.ai может требовать captcha/anti-bot cookies; тогда лучше использовать browser fallback.
-- `chat.z.ai` и `chatglm.cn` — разные backend-и, токены между ними не взаимозаменяемы.
+- `chat.z.ai` и `chatglm.cn` — разные бэкенды, токены между ними не взаимозаменяемы.
 - Tool use — эмуляция через prompt-протокол, а не нативный function calling web-модели.
 - Реализация сверялась по Chat2API и покрыта локальными мок-тестами, но upstream может сломаться после очередного обновления фронта.
+
+---
+
+## Полезные ссылки
+
+- Подробные запросы: [docs/request-examples.md](docs/request-examples.md)
+- Заметки по CloakBrowser: [docs/cloakbrowser-notes.md](docs/cloakbrowser-notes.md)
+- Канал с практическими AI-разборами: [t.me/forgetmeai](https://t.me/forgetmeai)
+
+---
+
+<div align="center">
+
+Сделано для практических экспериментов с AI-агентами<br>
+**[t.me/forgetmeai](https://t.me/forgetmeai)**
+
+</div>
