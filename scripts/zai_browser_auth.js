@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { pathToFileURL } from 'url';
 import { defaultChromeExecutable } from '../src/providers/zaiBrowser.js';
 
 const outPath = process.argv[2] || process.env.AUTH_PATH || './auth.json';
@@ -117,6 +118,14 @@ async function main() {
   process.exit(2);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
   main().catch(err => { console.error(err); process.exit(1); });
+} else if (process.env.ZAI_AUTH_DEBUG_ENTRY) {
+  // Diagnostic: set ZAI_AUTH_DEBUG_ENTRY=1 to see why the entry-point check didn't match
+  console.error('zai_browser_auth.js loaded but not run as main:', {
+    'import.meta.url': import.meta.url,
+    'argv[1]': process.argv[1],
+    'expected': process.argv[1] ? pathToFileURL(process.argv[1]).href : null
+  });
 }
