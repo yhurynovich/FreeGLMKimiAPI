@@ -66,6 +66,11 @@ async function cookieHeader(page) {
   return cookies.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
+function isTransientNavigationError(err) {
+  const msg = String(err && err.message || err || '');
+  return /Execution context was destroyed|Cannot find context|Target closed|Session closed|detached Frame|Node is detached/i.test(msg);
+}
+
 async function main() {
   const puppeteer = await loadPuppeteer();
   fs.mkdirSync(profileDir, { recursive: true });
@@ -97,7 +102,17 @@ async function main() {
   while (Date.now() - started < timeoutMs) {
     // Prefer localStorage: Z.ai may keep an early guest Authorization request in memory,
     // while localStorage is already updated to the real logged-in account token.
-    const localToken = await readToken(page);
+    let localToken = '';
+    try {
+      localToken = await readToken(page);
+    } catch (err) {
+      if (isTransientNavigationError(err)) {
+        // Page navigated (e.g. right after login) mid-read; just retry next tick.
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      throw err;
+    }
     const candidates = [localToken, networkToken].filter(Boolean);
     const usable = candidates.map(token => ({ token, state: isUsableZaiAuthToken(token, { allowGuest: allowGuestAuth }) })).find(item => item.state.ok);
     const guestSeen = candidates.some(token => isUsableZaiAuthToken(token, { allowGuest: false }).reason === 'guest_token');
