@@ -286,32 +286,52 @@ export class ZaiBrowserClient {
     this.page = page;
     await this.setupPage(page);
     await page.goto(ZAI_BASE, { waitUntil: 'domcontentloaded', timeout: Number(this.env.ZAI_BROWSER_NAV_TIMEOUT || 60_000) }).catch(() => null);
+
+    // Tracked outside the Promise executor so a failure during prompt
+    // submission (below) can tear down the timer/listener instead of
+    // leaving them to fire later on a promise nobody is listening to
+    // anymore (that orphaned rejection is what was crashing the process).
+    let onResponse;
+    let timeout;
+    const cleanup = () => {
+      clearTimeout(timeout);
+      if (onResponse) page.off('response', onResponse);
+    };
+
     const responsePromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        page.off('response', onResponse);
+      timeout = setTimeout(() => {
+        cleanup();
         reject(new Error('Timed out waiting for Z.ai UI completion response'));
       }, Number(this.env.ZAI_BROWSER_COMPLETION_TIMEOUT || 180_000));
-      async function onResponse(response) {
+      onResponse = async (response) => {
         const url = typeof response.url === 'function' ? response.url() : response.url;
         if (!String(url).includes('/api/v2/chat/completions')) return;
         try {
           const raw = await response.text();
-          clearTimeout(timeout);
-          page.off('response', onResponse);
+          cleanup();
           const headers = typeof response.headers === 'function' ? response.headers() : (response.headers || {});
           const ok = typeof response.ok === 'function' ? response.ok() : response.ok;
           const status = typeof response.status === 'function' ? response.status() : response.status;
           resolve({ ok, status, contentType: headers['content-type'] || '', raw });
         } catch (err) {
-          clearTimeout(timeout);
-          page.off('response', onResponse);
+          cleanup();
           reject(err);
         }
-      }
+      };
       page.on('response', onResponse);
     });
-    await this.humanFillPrompt(page, prompt);
-    await page.keyboard.press('Enter');
+
+    try {
+      await this.humanFillPrompt(page, prompt);
+      await page.keyboard.press('Enter');
+    } catch (err) {
+      // Submission failed (e.g. textarea never appeared because the page
+      // landed on a login/captcha wall instead of the chat UI). Kill the
+      // pending timer instead of leaving it to reject unattended later.
+      cleanup();
+      throw err;
+    }
+
     return responsePromise;
   }
 

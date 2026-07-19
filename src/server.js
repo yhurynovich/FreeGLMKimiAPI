@@ -13,6 +13,15 @@ import { anthropicToOpenAI, openAIToAnthropic } from './anthropic.js';
 const store=new SessionStore();
 const accountManager=new AccountManager({ authPath: AUTH_PATH, env: process.env, cooldownMs: Number(process.env.ACCOUNT_COOLDOWN_MS || 60_000) });
 
+// Safety net: log any stray unhandled rejection instead of letting Node's
+// default behavior kill the whole process. This does NOT replace fixing the
+// actual source (see zaiBrowser.js completeViaUi) — it just stops one bad
+// promise from taking down every in-flight request when the fleet is under
+// heavy parallel load.
+process.on('unhandledRejection', (err) => {
+  console.error('[FreeGLMKimiAPI] unhandled rejection (recovered):', err);
+});
+
 function json(res,status,obj){ const data=JSON.stringify(obj); res.writeHead(status, {'Content-Type':'application/json','Content-Length':Buffer.byteLength(data)}); res.end(data); }
 async function readBody(req){ const chunks=[]; for await (const c of req) chunks.push(c); const raw=Buffer.concat(chunks).toString('utf8'); return raw ? JSON.parse(raw) : {}; }
 function selectAccount(provider, session){ if (MOCK_PROVIDER) return { id:`mock-${provider}`, provider }; return accountManager.select(provider, session); }
