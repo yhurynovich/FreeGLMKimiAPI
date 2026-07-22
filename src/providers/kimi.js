@@ -14,7 +14,10 @@ export class KimiProvider {
   constructor(account){ this.account=account; this.token=account.token || account.accessToken || account.refreshToken || account.refresh_token; if(!this.token) throw new Error('Kimi token missing'); }
   async complete({ messages, modelCfg, tools, session }) {
     const prompt=preparePrompt(messages, tools, { simpleTools:true, isMultiTurn: !!session.providerSessionId });
-    const payload={ scenario:'SCENARIO_K2D5', chat_id:session.providerSessionId || '', tools:modelCfg.webSearch ? [{type:'TOOL_TYPE_SEARCH',search:{}}] : [], message:{ parent_id:session.parentMessageId || '', role:'user', blocks:[{message_id:'', text:{content:prompt}}], scenario:'SCENARIO_K2D5' }, options:{ thinking: !!modelCfg.thinking } };
+    const message={ role:'user', blocks:[{message_id:'', text:{content:prompt}}], scenario:'SCENARIO_K2D5' };
+    if (session.parentMessageId) message.parent_id = session.parentMessageId;
+    const payload={ scenario:'SCENARIO_K2D5', tools:modelCfg.webSearch ? [{type:'TOOL_TYPE_SEARCH',search:{}}] : [], message, options:{ thinking: !!modelCfg.thinking } };
+    if (session.providerSessionId) payload.chat_id = session.providerSessionId;
     const resp=await fetch(`${BASE}/apiv2/kimi.gateway.chat.v1.ChatService/Chat`, { method:'POST', headers:{...HEADERS,Authorization:`Bearer ${this.token}`,'Content-Type':'application/connect+json'}, body:frameJson(payload) });
     if (!resp.ok) throw new Error(`Kimi HTTP ${resp.status}: ${(await resp.text()).slice(0,200)}`);
     const arr=Buffer.from(await resp.arrayBuffer());
