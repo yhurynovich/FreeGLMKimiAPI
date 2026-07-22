@@ -9,6 +9,7 @@ import { ZaiProvider } from './providers/zai.js';
 import { mockComplete } from './mockProvider.js';
 import { parseToolCallsFromText, buildToolCallCompletion, usage } from './tooling.js';
 import { anthropicToOpenAI, openAIToAnthropic } from './anthropic.js';
+import { contentToText } from './message.js';
 
 const store=new SessionStore();
 const accountManager=new AccountManager({ authPath: AUTH_PATH, env: process.env, cooldownMs: Number(process.env.ACCOUNT_COOLDOWN_MS || 60_000) });
@@ -30,6 +31,11 @@ function textCompletion(content, model, prompt='', reasoning=''){ const msg={rol
 function sseChunk(res,obj){ res.write(`data: ${JSON.stringify(obj)}\n\n`); }
 async function doCompletion(body){
   const modelCfg=resolveModel(body.model); const agentId=body.user || body.metadata?.user_id || body.headers?.['x-agent-id'] || 'default'; const session=store.get(agentId, modelCfg.provider);
+  const lastMsg=body.messages?.[body.messages.length - 1];
+  if (contentToText(lastMsg?.content).trim() === '/new') {
+    session.providerSessionId = ''; session.parentMessageId = ''; session.messageCount = 0;
+    return textCompletion('Session reset. You can now start a new conversation.', modelCfg.id);
+  }
   let result;
   if (MOCK_PROVIDER) result={ text: await mockComplete({ prompt:(body.messages||[]).map(m=>m.content).join('\n'), model:modelCfg.id, tools:body.tools }), prompt:(body.messages||[]).map(m=>m.content).join('\n') };
   else {
